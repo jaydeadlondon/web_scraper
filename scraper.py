@@ -4,9 +4,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ЗАМЕНИТЕ 'YOUR_TELEGRAM_BOT_TOKEN' НА ВАШ ТОКЕН
-TOKEN = '8321445274:AAGpzc09C4k7FpCie_4XyJltBDqkwjPiigU'
+TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
 
-# Словарь для хранения языка для каждого пользователя
 user_langs = {}
 
 def scrape_wikipedia(title, lang='en'):
@@ -47,7 +46,7 @@ def scrape_wikipedia(title, lang='en'):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    user_langs[user_id] = 'en'  # Язык по умолчанию
+    user_langs[user_id] = 'en'
     await update.message.reply_text(
         'Привет! Я бот для парсинга Википедии.\n'
         'Используй /set_lang ru или /set_lang en, чтобы выбрать язык.\n'
@@ -68,7 +67,7 @@ async def set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    lang = user_langs.get(user_id, 'en')  # По умолчанию en, если не установлен
+    lang = user_langs.get(user_id, 'en')
     
     title = update.message.text.strip().replace(" ", "_")
     
