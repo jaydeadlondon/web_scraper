@@ -1,6 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
-import sys
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+
+# ЗАМЕНИТЕ 'YOUR_TELEGRAM_BOT_TOKEN' НА ВАШ ТОКЕН
+TOKEN = '8321445274:AAGpzc09C4k7FpCie_4XyJltBDqkwjPiigU'
+
+# Словарь для хранения языка для каждого пользователя
+user_langs = {}
 
 def scrape_wikipedia(title, lang='en'):
     base_url = f"https://{lang}.wikipedia.org/wiki/{title}"
@@ -12,10 +19,9 @@ def scrape_wikipedia(title, lang='en'):
     response = requests.get(base_url, headers=headers)
     
     if response.status_code != 200:
-        print(f"Ошибка доступа: {response.status_code}")
         if response.status_code == 404:
-            print("❌ Статья не найдена. Проверь название и язык.")
-        return
+            return "❌ Статья не найдена. Проверь название и язык."
+        return f"Ошибка доступа: {response.status_code}"
     
     soup = BeautifulSoup(response.text, 'html.parser')
     
@@ -34,32 +40,56 @@ def scrape_wikipedia(title, lang='en'):
             if text:
                 first_paragraph_text = text
                 break
-        
     except Exception as e:
-        first_paragraph_text = "Ошибка при извлечении текста."
+        first_paragraph_text = f"Ошибка при извлечении текста: {e}"
 
-    print(f"\n📘 СТАТЬЯ: {heading}")
-    print(f"🔗 Ссылка: {base_url}")
-    print(f"\n📝 Первый абзац:\n{first_paragraph_text}")
+    return f"📘 СТАТЬЯ: {heading}\n🔗 Ссылка: {base_url}\n\n📝 Первый абзац:\n{first_paragraph_text}"
 
-    filename = f"{lang}_{title}.txt"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(f"Статья: {heading}\n")
-        f.write(f"Ссылка: {base_url}\n\n")
-        f.write(f"Текст:\n{first_paragraph_text}\n")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    user_langs[user_id] = 'en'  # Язык по умолчанию
+    await update.message.reply_text(
+        'Привет! Я бот для парсинга Википедии.\n'
+        'Используй /set_lang ru или /set_lang en, чтобы выбрать язык.\n'
+        'Затем просто отправь мне название статьи для поиска.'
+    )
+
+async def set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    try:
+        lang = context.args[0].lower()
+        if lang in ['ru', 'en']:
+            user_langs[user_id] = lang
+            await update.message.reply_text(f"Язык установлен на {'русский' if lang == 'ru' else 'английский'}.")
+        else:
+            await update.message.reply_text("Пожалуйста, выбери 'ru' или 'en'.")
+    except (IndexError, ValueError):
+        await update.message.reply_text("Использование: /set_lang <ru|en>")
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    lang = user_langs.get(user_id, 'en')  # По умолчанию en, если не установлен
     
-    print(f"\n✅ Сохранено в: {filename}")
+    title = update.message.text.strip().replace(" ", "_")
+    
+    await update.message.reply_text("⏳ Идет поиск...")
+    
+    result = scrape_wikipedia(title, lang)
+    
+    await update.message.reply_text(result)
 
+def main():
+    if TOKEN == 'YOUR_TELEGRAM_BOT_TOKEN':
+        print("Пожалуйста, замените 'YOUR_TELEGRAM_BOT_TOKEN' на ваш настоящий токен в файле scraper.py")
+        return
+
+    application = Application.builder().token(TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("set_lang", set_lang))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    application.run_polling()
 
 if __name__ == "__main__":
-    print("🌐 Выберите язык:")
-    print("1. Русская Википедия (ru)")
-    print("2. Английская Википедия (en)")
-    
-    choice = input("Выберите (1 или 2): ").strip()
-    lang = 'ru' if choice == '1' else 'en'
-    
-    title = input(f"Введите название статьи ({'на русском' if lang == 'ru' else 'на английском'}): ").strip()
-    title = title.replace(" ", "_")
-    
-    scrape_wikipedia(title, lang)
+    main()
